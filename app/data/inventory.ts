@@ -1,373 +1,353 @@
 import { getKnowledgeForProduct } from "./productknowledge";
+import { detectCustomerIntent } from "../lib/intentengine";
 
 export type InventoryProduct = {
-	sku: string;
-	product: string;
-	category: string;
-	tags: string;
-	strain: string;
-	vendor: string;
-	room: string;
-	available: number;
-	price: number;
-	expirationDate: string;
-	flowerEquiv: string;
-	imageUrl: string;
-	thc: number;
-	thca: number;
-	cbd: number;
-	calculatedThcMg: number;
+  sku: string;
+  product: string;
+  category: string;
+  tags: string;
+  strain: string;
+  vendor: string;
+  room: string;
+  available: number;
+  price: number;
+  expirationDate: string;
+  flowerEquiv: string;
+  imageUrl: string;
+  thc: number;
+  thca: number;
+  cbd: number;
+  calculatedThcMg: number;
 };
 
 export type Recommendation = {
-	product: InventoryProduct;
-	score: number;
-	reasons: string[];
+  product: InventoryProduct;
+  score: number;
+  reasons: string[];
 };
 
 function cleanText(value: string) {
-	return (
-		value
-			?.replace(/^="/, "")
-	.replace(/"$/, "")
-	.replace(/^=/, "")
-	.replace(/"/g, "")
-			.trim() || ""
-	);
+  return (
+    value
+      ?.replace(/^="/, "")
+      .replace(/"$/, "")
+      .replace(/^=/, "")
+      .replace(/"/g, "")
+      .trim() || ""
+  );
 }
 
 function cleanNumber(value: string) {
-	if (!value) return 0;
-	const cleaned = cleanText(value)
-		.replace("$", "")
-		.replace("%", "")
-	.replace("mg/g", "")
-	.replace("mg", "")
-	.replace("g", "")
-		.replace(",", "")
-		.trim();
+  if (!value) return 0;
 
-	const number = parseFloat(cleaned);
-	return Number.isNaN(number) ? 0 : number;
+  const cleaned = cleanText(value)
+    .replace("$", "")
+    .replace("%", "")
+    .replace("mg/g", "")
+    .replace("mg", "")
+    .replace("g", "")
+    .replace(",", "")
+    .trim();
+
+  const number = parseFloat(cleaned);
+  return Number.isNaN(number) ? 0 : number;
 }
 
 function parseCSVLine(line: string) {
-	const result: string[] = [];
-	let current = "";
-	let insideQuotes = false;
+  const result: string[] = [];
+  let current = "";
+  let insideQuotes = false;
 
-	for (const char of line) {
-		if (char === '"') insideQuotes = !insideQuotes;
-		else if (char === "," && !insideQuotes) {
-			result.push(current.trim());
-			current = "";
-		} else {
-			current += char;
-		}
-	}
+  for (const char of line) {
+    if (char === '"') {
+      insideQuotes = !insideQuotes;
+    } else if (char === "," && !insideQuotes) {
+      result.push(current.trim());
+      current = "";
+    } else {
+      current += char;
+    }
+  }
 
-	result.push(current.trim());
-	return result;
+  result.push(current.trim());
+  return result;
 }
 
 export async function loadInventory(): Promise<InventoryProduct[]> {
-	const response = await fetch("/inventory.csv");
+  const response = await fetch("/inventory.csv");
 
-	if (!response.ok) {
-		throw new Error("inventory.csv not found");
-	}
+  if (!response.ok) {
+    throw new Error("inventory.csv not found");
+  }
 
-	const text = await response.text();
-	const lines = text.trim().split(/\r?\n/);
+  const text = await response.text();
+  const lines = text.trim().split(/\r?\n/);
 
-	if (!lines.length) return [];
-	const headers = parseCSVLine(lines[0]).map((h) =>
-		cleanText(h.replace("\uFEFF", ""))
-	);
+  if (!lines.length) return [];
 
-	return lines.slice(1).map((line) => {
-		const values = parseCSVLine(line);
-		const row: Record<string, string> = {};
+  const headers = parseCSVLine(lines[0]).map((header) =>
+    cleanText(header.replace("\uFEFF", ""))
+  );
 
-		headers.forEach((header, index) => {
-			row[header] = values[index] || "";
-		});
+  return lines.slice(1).map((line) => {
+    const values = parseCSVLine(line);
+    const row: Record<string, string> = {};
 
-		return {
-			sku: cleanText(row["SKU"]),
-			product: cleanText(row["Product"]),
-			category: cleanText(row["Category"]),
-	tags: cleanText(row["Tags"]),
-	strain: cleanText(row["Strain"]),
-	vendor: cleanText(row["Vendor"]),
-	room: cleanText(row["Room"]),
-	available: cleanNumber(row["Available"]),
-	price: cleanNumber(row["Current price"]),
-	expirationDate: cleanText(row["Expiration date"]),
-	flowerEquiv: cleanText(row["Flower equiv"]),
-	imageUrl: cleanText(row["Image URL"]),
-	thc: cleanNumber(row["THC"]),
-	thca: cleanNumber(row["THCA"]),
-	cbd: cleanNumber(row["CBD"]),
-			calculatedThcMg: cleanNumber(row["Calculated THC (mg)"]),
-		};
-	});
+    headers.forEach((header, index) => {
+      row[header] = values[index] || "";
+    });
+
+    return {
+      sku: cleanText(row["SKU"]),
+      product: cleanText(row["Product"]),
+      category: cleanText(row["Category"]),
+      tags: cleanText(row["Tags"]),
+      strain: cleanText(row["Strain"]),
+      vendor: cleanText(row["Vendor"]),
+      room: cleanText(row["Room"]),
+      available: cleanNumber(row["Available"]),
+      price: cleanNumber(row["Current price"]),
+      expirationDate: cleanText(row["Expiration date"]),
+      flowerEquiv: cleanText(row["Flower equiv"]),
+      imageUrl: cleanText(row["Image URL"]),
+      thc: cleanNumber(row["THC"]),
+      thca: cleanNumber(row["THCA"]),
+      cbd: cleanNumber(row["CBD"]),
+      calculatedThcMg: cleanNumber(row["Calculated THC (mg)"]),
+    };
+  });
 }
 
 export function getPotency(product: InventoryProduct) {
-	return Math.max(product.thc, product.thca);
-}
-
-function includesAny(text: string, words: string[]) {
-	return words.some((word) => text.includes(word));
+  return Math.max(product.thc, product.thca);
 }
 
 function getSearchText(product: InventoryProduct) {
-	return `
-	${product.product}
-	${product.category}
-	${product.tags}
-		${product.vendor}
-		${product.strain}
-	`.toLowerCase();
+  return `
+    ${product.product}
+    ${product.category}
+    ${product.tags}
+    ${product.vendor}
+    ${product.strain}
+  `.toLowerCase();
 }
 
-function isFlower(product: InventoryProduct) {
-	return getSearchText(product).includes("flower");
+function productMatchesCategory(product: InventoryProduct, category: string) {
+  const text = getSearchText(product);
+
+  if (!category) return true;
+
+  if (category === "flower") return text.includes("flower");
+
+  if (category === "vape") {
+    return (
+      text.includes("vape") ||
+      text.includes("cart") ||
+      text.includes("cartridge") ||
+      text.includes("disposable")
+    );
+  }
+
+  if (category === "edible") {
+    return (
+      text.includes("edible") ||
+      text.includes("gummy") ||
+      text.includes("gummies") ||
+      text.includes("chocolate") ||
+      text.includes("drink")
+    );
+  }
+
+  if (category === "preroll") {
+    return (
+      text.includes("pre-roll") ||
+      text.includes("preroll") ||
+      text.includes("pre roll") ||
+      text.includes("joint")
+    );
+  }
+
+  if (category === "concentrate") {
+    return (
+      text.includes("concentrate") ||
+      text.includes("wax") ||
+      text.includes("rosin") ||
+      text.includes("resin") ||
+      text.includes("hash") ||
+      text.includes("dab")
+    );
+  }
+
+  return true;
 }
 
-function isVape(product: InventoryProduct) {
-	const text = getSearchText(product);
-	return (
-		text.includes("vape") ||
-		text.includes("cart") ||
-		text.includes("cartridge")
-	);
-}
+function isCannabisProduct(product: InventoryProduct) {
+  const text = getSearchText(product);
 
-function isEdible(product: InventoryProduct) {
-	return getSearchText(product).includes("edible");
-}
-
-function isPreroll(product: InventoryProduct) {
-	const text = getSearchText(product);
-	return (
-		text.includes("pre-roll") ||
-		text.includes("preroll") ||
-		text.includes("joint")
-	);
-}
-
-function isConcentrate(product: InventoryProduct) {
-	const text = getSearchText(product);
-	return (
-		text.includes("concentrate") ||
-		text.includes("wax") ||
-	text.includes("rosin") ||
-	text.includes("resin") ||
-	text.includes("hash") ||
-		text.includes("dab")
-	);
-}
-
-function getBudgetLimit(text: string) {
-	const match =
-		text.match(/under\s?\$?(\d+)/) ||
-		text.match(/less than\s?\$?(\d+)/) ||
-		text.match(/max\s?\$?(\d+)/);
-
-	return match ? Number(match[1]) : null;
+  return !(
+    text.includes("shirt") ||
+    text.includes("hoodie") ||
+    text.includes("battery") ||
+    text.includes("lighter") ||
+    text.includes("papers") ||
+    text.includes("merch") ||
+    text.includes("apparel") ||
+    text.includes("accessory")
+  );
 }
 
 function scoreProduct(product: InventoryProduct, question: string): Recommendation {
-	const text = question.toLowerCase();
-	const searchable = getSearchText(product);
-	const potency = getPotency(product);
-	const knowledge = getKnowledgeForProduct(product.product);
-	const budgetLimit = getBudgetLimit(text);
+  const intent = detectCustomerIntent(question);
+  const searchable = getSearchText(product);
+  const potency = getPotency(product);
+  const knowledge = getKnowledgeForProduct(product.product);
 
-	const wantsFlower = includesAny(text, [
-	"flower",
-	"bud",
-	"eighth",
-	"3.5",
-	"quarter",
-	"ounce",
-	]);
+  let score = 0;
+  const reasons: string[] = [];
 
-	const wantsVape = includesAny(text, [
-	"vape",
-	"cart",
-	"cartridge",
-		"disposable",
-	]);
+  if (product.available <= 0) {
+    return { product, score: -9999, reasons: ["Not available"] };
+  }
 
-	const wantsEdible = includesAny(text, [
-		"edible",
-		"gummy",
-		"gummies",
-		"chocolate",
-	]);
+  if (!isCannabisProduct(product)) {
+    return { product, score: -9999, reasons: ["Excluded non-cannabis item"] };
+  }
 
-	const wantsPreroll = includesAny(text, [
-		"pre roll",
-		"pre-roll",
-		"preroll",
-		"joint",
-	]);
+  if (!productMatchesCategory(product, intent.category)) {
+    return { product, score: -9999, reasons: ["Wrong category"] };
+  }
 
-	const wantsConcentrate = includesAny(text, [
-		"concentrate",
-		"wax",
-		"rosin",
-		"resin",
-		"hash",
-		"dab",
-	]);
+  score += 20;
+  reasons.push("In stock");
 
-	const wantsStrong = includesAny(text, [
-		"strong",
-		"strongest",
-		"high thc",
-		"highest thc",
-		"potent",
-	]);
+  if (intent.category) {
+    score += 60;
+    reasons.push(`Matches ${intent.category} request`);
+  }
 
-	const wantsLow = includesAny(text, [
-		"weak",
-		"weakest",
-		"low thc",
-		"lowest thc",
-		"mild",
-		"not strong",
-		"low potency",
-	]);
+  if (intent.thc === "high" && potency > 0) {
+    score += potency * 3;
+    reasons.push(`High potency: ${potency}%`);
+  }
 
-	const wantsBudget = includesAny(text, [
-		"cheap",
-		"deal",
-		"budget",
-		"sale",
-		"affordable",
-		"under",
-	]);
+  if (intent.thc === "low" && potency > 0) {
+    if (potency <= 20) {
+      score += 90;
+      reasons.push(`Low potency: ${potency}%`);
+    } else if (potency <= 25) {
+      score += 50;
+      reasons.push(`Moderate potency: ${potency}%`);
+    } else {
+      score -= potency * 2;
+      reasons.push("Higher than requested potency");
+    }
+  }
 
-	const wantsSleep = includesAny(text, ["sleep", "night", "bed"]);
-	const wantsRelax = includesAny(text, ["relax", "relaxing", "calm", "chill", "stress"]);
-	const wantsEnergy = includesAny(text, ["energy", "focus", "daytime", "productive"]);
-	const wantsCreativity = includesAny(text, ["creative", "gaming", "music", "art"]);
-	const wantsAnxiety = includesAny(text, ["anxiety", "nervous", "panic", "paranoid"]);
-	const wantsBeginner = includesAny(text, ["beginner", "new", "first time", "low tolerance"]);
+  if (intent.thc === "balanced" && potency > 0) {
+    if (potency >= 20 && potency <= 30) {
+      score += 60;
+      reasons.push(`Balanced potency: ${potency}%`);
+    } else {
+      score -= 20;
+    }
+  }
 
-	let score = 0;
-	const reasons: string[] = [];
+  if (intent.budget !== null) {
+    if (product.price > 0 && product.price <= intent.budget) {
+      score += 45;
+      reasons.push(`Under $${intent.budget}`);
+    } else {
+      score -= 60;
+    }
+  }
 
-	if (product.available <= 0) {
-		return { product, score: -9999, reasons: ["Not available"] };
-	}
+  if (intent.wantsBudget && product.price > 0) {
+    score += Math.max(0, 60 - product.price);
+    reasons.push("Budget-aware");
+  }
 
-	if (wantsFlower && !isFlower(product)) {
-		return { product, score: -9999, reasons: ["Not flower"] };
-	}
+  if (knowledge) {
+    score += 10;
+    reasons.push("Enhanced product knowledge");
 
-	if (wantsVape && !isVape(product)) {
-		return { product, score: -9999, reasons: ["Not vape/cart"] };
-	}
+    if (intent.wantsSleep) {
+      score += knowledge.sleepScore * 6;
+      reasons.push(`Sleep score: ${knowledge.sleepScore}/10`);
+    }
 
-	if (wantsEdible && !isEdible(product)) {
-		return { product, score: -9999, reasons: ["Not edible"] };
-	}
+    if (intent.wantsRelax) {
+      score += knowledge.relaxScore * 6;
+      reasons.push(`Relax score: ${knowledge.relaxScore}/10`);
+    }
 
-	if (wantsPreroll && !isPreroll(product)) {
-		return { product, score: -9999, reasons: ["Not pre-roll"] };
-	}
+    if (intent.wantsEnergy) {
+      score += knowledge.energyScore * 6;
+      reasons.push(`Energy score: ${knowledge.energyScore}/10`);
+    }
 
-	if (wantsConcentrate && !isConcentrate(product)) {
-		return { product, score: -9999, reasons: ["Not concentrate"] };
-	}
-	score += 20;
-	reasons.push("In stock");
+    if (intent.wantsCreativity) {
+      score += knowledge.creativityScore * 6;
+      reasons.push(`Creativity score: ${knowledge.creativityScore}/10`);
+    }
 
-	if (wantsFlower) {
-		score += 60;
-		reasons.push("Matches flower request");
-	}
+    if (intent.wantsAnxietyFriendly && knowledge.anxietyFriendly) {
+      score += 45;
+      reasons.push("Anxiety-friendly");
+    }
 
-	if (wantsVape || wantsEdible || wantsPreroll || wantsConcentrate) {
-		score += 60;
-		reasons.push("Matches requested category");
-	}
+    if (intent.wantsBeginner && knowledge.beginnerFriendly) {
+      score += 45;
+      reasons.push("Beginner-friendly");
+    } else if (intent.wantsBeginner && potency > 28) {
+      score -= 40;
+      reasons.push("May be strong for beginners");
+    }
+  }
 
-	if (wantsStrong && potency > 0) {
-		score += potency * 3;
-		reasons.push(`High potency: ${potency}%`);
-	}
+  if (intent.flavor && searchable.includes(intent.flavor.toLowerCase())) {
+    score += 35;
+    reasons.push(`Flavor match: ${intent.flavor}`);
+  }
 
-	if (wantsLow && potency > 0) {
-		if (potency <= 20) {
-			score += 90;
-			reasons.push(`Low potency: ${potency}%`);
-		} else if (potency <= 25) {
-			score += 50;
-			reasons.push(`Moderate potency: ${potency}%`);
-		} else {
-			score -= potency * 2;
-			reasons.push("Higher than requested potency");
-		}
-	}
+  if (intent.terpene && searchable.includes(intent.terpene.toLowerCase())) {
+    score += 35;
+    reasons.push(`Terpene match: ${intent.terpene}`);
+  }
 
-	if (budgetLimit !== null) {
-		if (product.price > 0 && product.price <= budgetLimit) {
-			score += 45;
-			reasons.push(`Under $${budgetLimit}`);
-		} else {
-			score -= 60;
-		}
-	}
+  for (const word of intent.originalQuestion
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((word) => word.length > 2)) {
+    if (searchable.includes(word)) score += 8;
+  }
 
-	if (wantsBudget && product.price > 0) {
-		score += Math.max(0, 60 - product.price);
-		reasons.push("Budget-aware");
-	}
-
-	if (knowledge) {
-		score += 10;
-
-		if (wantsSleep) score += knowledge.sleepScore * 6;
-		if (wantsRelax) score += knowledge.relaxScore * 6;
-		if (wantsEnergy) score += knowledge.energyScore * 6;
-		if (wantsCreativity) score += knowledge.creativityScore * 6;
-
-		if (wantsAnxiety && knowledge.anxietyFriendly) {
-			score += 45;
-			reasons.push("Anxiety-friendly");
-		}
-
-		if (wantsBeginner && knowledge.beginnerFriendly) {
-			score += 45;
-			reasons.push("Beginner-friendly");
-		} else if (wantsBeginner && potency > 28) {
-			score -= 40;
-			reasons.push("May be strong for beginners");
-		}
-	}
-
-	for (const word of text.split(/\s+/).filter((w) => w.length > 2)) {
-		if (searchable.includes(word)) score += 8;
-	}
-
-	return { product, score, reasons };
+  return { product, score, reasons };
 }
 
 export function findTopProducts(
-	products: InventoryProduct[],
-	question: string,
-	limit = 3
+  products: InventoryProduct[],
+  question: string,
+  limit = 3
 ): Recommendation[] {
-	return products
-		.map((product) => scoreProduct(product, question))
-		.filter((item) => item.score > 0)
-		.sort((a, b) => b.score - a.score)
-		.slice(0, limit);
-}
+  const intent = detectCustomerIntent(question);
 
+  const scored = products
+    .map((product) => scoreProduct(product, question))
+    .filter((item) => item.score > 0);
+
+  if (intent.thc === "high") {
+    return scored
+      .filter((item) => getPotency(item.product) > 0)
+      .sort((a, b) => getPotency(b.product) - getPotency(a.product))
+      .slice(0, limit);
+  }
+
+  if (intent.thc === "low") {
+    return scored
+      .filter((item) => getPotency(item.product) > 0)
+      .sort((a, b) => getPotency(a.product) - getPotency(b.product))
+      .slice(0, limit);
+  }
+
+  return scored.sort((a, b) => b.score - a.score).slice(0, limit);
+}

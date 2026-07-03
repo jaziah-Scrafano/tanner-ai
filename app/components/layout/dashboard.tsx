@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Hologram from "../hologram/hologram";
+import Hologram, { type HologramStatus } from "../hologram/hologram";
 import ChatWindow from "../chat/chatwindow";
 import ProductCard from "../inventory/productcard";
 import StatusPanel from "../system/statuspanel";
@@ -12,23 +12,26 @@ export default function Dashboard() {
   const [selectedProduct, setSelectedProduct] =
     useState<InventoryProduct | null>(null);
 
+  const [hologramStatus, setHologramStatus] =
+    useState<HologramStatus>("ready");
+
   return (
-    <main className="relative min-h-screen overflow-hidden p-5">
+    <main className="h-screen overflow-hidden p-4">
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(57,255,136,.04)_1px,transparent_1px),linear-gradient(90deg,rgba(57,255,136,.04)_1px,transparent_1px)] bg-[size:42px_42px]" />
 
-      <section className="relative z-10 mx-auto max-w-[1800px]">
-        <div className="panel overflow-hidden">
-          <header className="flex items-center justify-between border-b border-white/10 px-7 py-6">
+      <section className="relative z-10 mx-auto flex h-full max-w-[1800px] flex-col">
+        <div className="panel flex h-full flex-col overflow-hidden">
+          <header className="flex shrink-0 items-center justify-between border-b border-white/10 px-7 py-5">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.4em] text-green-400">
                 Broad St Buds Neural Interface
               </p>
 
-              <h1 className="mt-2 text-6xl font-black tracking-tight">
+              <h1 className="mt-2 text-5xl font-black tracking-tight">
                 TANNER <span className="neon">A.I.</span>
               </h1>
 
-              <p className="mt-2 text-zinc-400">
+              <p className="mt-1 text-zinc-400">
                 Holographic Budtender Operating System
               </p>
             </div>
@@ -44,19 +47,25 @@ export default function Dashboard() {
             </div>
           </header>
 
-          <div className="grid min-h-[820px] grid-cols-[360px_1fr_360px] gap-6 p-6">
-            <section className="panel overflow-hidden">
-              <Hologram />
+          <div className="grid min-h-0 flex-1 grid-cols-[340px_1fr_360px] gap-5 p-5">
+            <section className="panel min-h-0 overflow-hidden">
+              <Hologram status={hologramStatus} />
             </section>
 
-            <ChatWindow setSelectedProduct={setSelectedProduct} />
+            <ChatWindow
+              setSelectedProduct={setSelectedProduct}
+              setHologramStatus={setHologramStatus}
+            />
 
-            <section className="space-y-6">
+            <section className="min-h-0 space-y-5 overflow-y-auto pr-1">
               <ProductCard product={selectedProduct} />
               <StatusPanel />
             </section>
           </div>
-          <Diagnostics />
+
+          <div className="shrink-0">
+            <Diagnostics />
+          </div>
         </div>
       </section>
     </main>

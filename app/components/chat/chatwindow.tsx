@@ -4,13 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import ChatInput from "./chatinput";
 import MessageBubble from "./messagebubble";
 import TypingIndicator from "./typingindicator";
+import { loadInventory, type InventoryProduct } from "../../data/inventory";
 import {
-  findTopProducts,
-  getPotency,
-  loadInventory,
-  type InventoryProduct,
-} from "../../data/inventory";
-import { answerKnowledgeQuestion } from "../../lib/knowledgeengine";
+  emptyMemory,
+  type ConversationMemory,
+} from "../../lib/memoryengine";
+import { runConversationEngine } from "../../lib/conversationengine";
+import type { HologramStatus } from "../hologram/hologram";
 
 type Message = {
   sender: "user" | "tanner";
@@ -19,13 +19,17 @@ type Message = {
 
 export default function ChatWindow({
   setSelectedProduct,
+  setHologramStatus,
 }: {
   setSelectedProduct: (product: InventoryProduct | null) => void;
+  setHologramStatus: (status: HologramStatus) => void;
 }) {
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
   const [inventory, setInventory] = useState<InventoryProduct[]>([]);
   const [inventoryError, setInventoryError] = useState("");
+  const [memory, setMemory] = useState<ConversationMemory>(emptyMemory);
+
   const endRef = useRef<HTMLDivElement>(null);
 
   const [messages, setMessages] = useState<Message[]>([
@@ -49,105 +53,86 @@ export default function ChatWindow({
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, thinking]);
 
-  function formatMoney(value: number) {
-    return value > 0 ? `$${value}` : "price not listed";
-  }
-
-  function formatPotency(product: InventoryProduct) {
-    const potency = getPotency(product);
-    return potency ? `${potency}% THC/THCA` : "potency not listed";
-  }
-
-  function buildSmartReply(text: string) {
-    if (inventoryError) return inventoryError;
+  function buildReply(question: string) {
+    if (inventoryError) {
+      return {
+        answer: inventoryError,
+        selectedProduct: null,
+        recommendations: [],
+        category: memory.lastCategory,
+      };
+    }
 
     if (inventory.length === 0) {
-      return "Inventory is still loading. Try again in a second.";
+      return {
+        answer: "Inventory is still loading. Try again in a second.",
+        selectedProduct: null,
+        recommendations: [],
+        category: memory.lastCategory,
+      };
     }
 
-    const knowledgeAnswer = answerKnowledgeQuestion(text, inventory);
-
-    if (knowledgeAnswer) {
-      return knowledgeAnswer;
-    }
-
-    const matches = findTopProducts(inventory, text, 3);
-
-    if (matches.length === 0) {
-      return "I couldn’t find a strong in-stock cannabis match for that. Try asking for flower, edibles, vapes, concentrates, pre-rolls, strongest, weakest, low THC, fruity, limonene, or something similar to Super Boof.";
-    }
-
-    const topMatch = matches[0];
-    const top = topMatch.product;
-    const potency = getPotency(top);
-
-    const intro = `I’d start with ${top.product} by ${
-      top.vendor || "Unknown Vendor"
-    }.`;
-
-    const productDetails = `It’s a ${top.category || "cannabis product"}${
-      top.strain ? ` listed as ${top.strain}` : ""
-    }, currently priced at ${formatMoney(top.price)}, with ${
-      top.available
-    } available${top.room ? ` in ${top.room}` : ""}.`;
-
-    const potencyDetails = potency
-      ? `The listed potency is ${potency}% THC/THCA, so it fits if you’re looking for something in that strength range.`
-      : "The potency is not clearly listed, so I’d confirm THC/THCA with staff before purchase.";
-
-    const why = `Why Tanner picked it: ${topMatch.reasons
-      .slice(0, 3)
-      .join(", ")}.`;
-
-    const alternatives =
-      matches.length > 1
-        ? `\n\nTwo other options I’d keep in mind:\n${matches
-            .slice(1)
-            .map((match, index) => {
-              const product = match.product;
-
-              return `${index + 2}. ${product.product} — ${
-                product.vendor || "Unknown Vendor"
-              }, ${formatPotency(product)}, ${formatMoney(product.price)}`;
-            })
-            .join("\n")}`
-        : "";
-
-    return `${intro}
-
-${productDetails}
-
-${potencyDetails}
-
-${why}${alternatives}
-
-Confirm availability with staff before purchase.`;
+    return runConversationEngine({
+      question,
+      inventory,
+      memory,
+    });
   }
 
   function sendMessage() {
-    const text = input.trim();
-    if (!text || thinking) return;
+    const question = input.trim();
+    if (!question || thinking) return;
 
-    const matches = findTopProducts(inventory, text, 3);
-    setSelectedProduct(matches[0]?.product || null);
+    if (question.toLowerCase() === "reset") {
+      setMemory(emptyMemory);
+      setSelectedProduct(null);
+      setHologramStatus("ready");
 
-    setMessages((prev) => [...prev, { sender: "user", text }]);
-    setInput("");
-    setThinking(true);
-
-    setTimeout(() => {
       setMessages((prev) => [
         ...prev,
-        { sender: "tanner", text: buildSmartReply(text) },
+        { sender: "user", text: question },
+        { sender: "tanner", text: "Conversation memory reset." },
+      ]);
+
+      setInput("");
+      return;
+    }
+
+    setMessages((prev) => [...prev, { sender: "user", text: question }]);
+    setInput("");
+    setThinking(true);
+    setHologramStatus("thinking");
+
+    setTimeout(() => {
+      const result = buildReply(question);
+
+      setSelectedProduct(result.selectedProduct);
+
+      setMemory({
+        lastQuestion: question,
+        lastAnswer: result.answer,
+        lastCategory: result.category,
+        lastRecommendations: result.recommendations,
+        selectedProduct: result.selectedProduct,
+      });
+
+      setMessages((prev) => [
+        ...prev,
+        { sender: "tanner", text: result.answer },
       ]);
 
       setThinking(false);
-    }, 900);
+      setHologramStatus("speaking");
+
+      setTimeout(() => {
+        setHologramStatus("ready");
+      }, 1200);
+    }, 700);
   }
 
   return (
-    <section className="panel flex min-h-[820px] flex-col overflow-hidden">
-      <div className="border-b border-white/10 px-6 py-5">
+    <section className="panel flex min-h-0 flex-col overflow-hidden">
+      <div className="shrink-0 border-b border-white/10 px-6 py-5">
         <div className="flex items-center justify-between">
           <div>
             <div className="text-xs uppercase tracking-[0.35em] text-green-400">
@@ -167,7 +152,7 @@ Confirm availability with staff before purchase.`;
         </div>
       </div>
 
-      <div className="flex-1 space-y-5 overflow-y-auto p-6">
+      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-6">
         {messages.map((message, index) => (
           <MessageBubble key={index} message={message} />
         ))}
@@ -177,12 +162,17 @@ Confirm availability with staff before purchase.`;
         <div ref={endRef} />
       </div>
 
-      <ChatInput
-        value={input}
-        thinking={thinking}
-        onChange={setInput}
-        onSend={sendMessage}
-      />
+      <div className="shrink-0">
+        <ChatInput
+          value={input}
+          thinking={thinking}
+          onChange={(value) => {
+            setInput(value);
+            setHologramStatus(value.trim() ? "listening" : "ready");
+          }}
+          onSend={sendMessage}
+        />
+      </div>
     </section>
   );
 }
