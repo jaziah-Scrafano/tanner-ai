@@ -15,15 +15,24 @@ export default function Dashboard() {
   const [hologramStatus, setHologramStatus] =
     useState<HologramStatus>("ready");
 
+  const statusGlow =
+    hologramStatus === "thinking"
+      ? "shadow-[0_0_90px_rgba(168,85,247,.22)]"
+      : hologramStatus === "speaking"
+      ? "shadow-[0_0_90px_rgba(251,146,60,.22)]"
+      : hologramStatus === "listening"
+      ? "shadow-[0_0_90px_rgba(34,211,238,.22)]"
+      : "shadow-[0_0_90px_rgba(57,255,136,.16)]";
+
   return (
     <main className="h-screen overflow-hidden p-4">
       <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(57,255,136,.04)_1px,transparent_1px),linear-gradient(90deg,rgba(57,255,136,.04)_1px,transparent_1px)] bg-[size:42px_42px]" />
 
       <section className="relative z-10 mx-auto flex h-full max-w-[1800px] flex-col">
-        <div className="panel flex h-full flex-col overflow-hidden">
+        <div className={`panel flex h-full flex-col overflow-hidden transition-all duration-500 ${statusGlow}`}>
           <header className="flex shrink-0 items-center justify-between border-b border-white/10 px-7 py-5">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.4em] text-green-400">
+              <p className="text-xs font-black uppercase tracking-[0.4em] text-cyan-300">
                 Broad St Buds Neural Interface
               </p>
 
@@ -42,7 +51,7 @@ export default function Dashboard() {
               </div>
 
               <div className="glass rounded-full px-5 py-3 text-zinc-300">
-                Version 2.0
+                {hologramStatus.toUpperCase()}
               </div>
             </div>
           </header>

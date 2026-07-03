@@ -125,8 +125,12 @@ export default function ChatWindow({
       setHologramStatus("speaking");
 
       setTimeout(() => {
+        setHologramStatus("listening");
+      }, 900);
+
+      setTimeout(() => {
         setHologramStatus("ready");
-      }, 1200);
+      }, 1600);
     }, 700);
   }
 

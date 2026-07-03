@@ -47,13 +47,13 @@ export default function ProjectorBeam({
     <>
       <Cylinder
         ref={beam}
-        args={[0.22, 1.05, 3.4, 64, 1, true]}
-        position={[0, -1.8, 0]}
+        args={[0.24, 1.08, 3.55, 96, 1, true]}
+        position={[0, -1.82, 0]}
       >
         <meshBasicMaterial
           color={color}
           transparent
-          opacity={0.12}
+          opacity={0.13}
           side={THREE.DoubleSide}
           depthWrite={false}
         />
@@ -61,31 +61,31 @@ export default function ProjectorBeam({
 
       <Torus
         ref={baseRing}
-        args={[1.25, 0.025, 32, 180]}
+        args={[1.28, 0.028, 32, 220]}
         position={[0, -3.35, 0]}
         rotation={[Math.PI / 2, 0, 0]}
       >
         <meshStandardMaterial
           color={color}
           emissive={color}
-          emissiveIntensity={3.5}
+          emissiveIntensity={3.8}
         />
       </Torus>
 
       <Torus
         ref={topRing}
-        args={[0.42, 0.012, 24, 120]}
-        position={[0, -0.35, 0]}
+        args={[0.44, 0.014, 24, 160]}
+        position={[0, -0.32, 0]}
         rotation={[Math.PI / 2, 0, 0]}
       >
         <meshStandardMaterial
           color="#ffffff"
           emissive={color}
-          emissiveIntensity={2.8}
+          emissiveIntensity={3}
         />
       </Torus>
 
-      <pointLight position={[0, -2.6, 0]} color={color} intensity={2.8} />
+      <pointLight position={[0, -2.6, 0]} color={color} intensity={3} />
     </>
   );
 }

@@ -7,6 +7,7 @@ import EnergyShell from "./energyshell";
 import OrbitalRings from "./orbitalrings";
 import ParticleField from "./particlefield";
 import ProjectorBeam from "./projectorbeam";
+import ReactorChamber from "./reactorchamber";
 import Lighting from "./lighting";
 import CameraRig from "./camerarig";
 import type { HologramStatus } from "./hologram";
@@ -23,6 +24,7 @@ export default function HologramScene({
       <Lighting status={status} />
       <CameraRig />
 
+      <ReactorChamber status={status} />
       <ProjectorBeam status={status} />
       <EnergyShell status={status} />
       <OrbitalRings status={status} />
